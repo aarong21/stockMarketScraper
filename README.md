@@ -1,0 +1,2 @@
+# stockMarketScraper
+Golang application
