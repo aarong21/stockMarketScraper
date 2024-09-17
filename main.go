@@ -1,6 +1,10 @@
 package main
 
-import(
+import (
+	"encoding/csv"
+	"fmt"
+	"os"
+	"log"
 	"github.com/gocolly/colly"
 )
 
@@ -35,26 +39,57 @@ func main(){
 	stocks := []Stock{}
 
 	c := colly.NewCollector()
+	
 	c.OnRequest(func(r *colly.Request) {
 		fmt.Println("Visiting:",r.URL)
 	})
 	c.OnError(func(_ *colly.Response, err error) {
 		log.Println("Something went wrong: ", err)
 	})
-
+	
 	c.OnHTML("div#quote-header-info", func(e *colly.HTMLElement) {
 		stock := Stock{}
 
 		stock.company = e.ChildText("h1")
 		fmt.Println("Company:", stock.company)
-		stock.price = e.ChildText("fin-streamer[data-field='regularMarketPrice']")
+		stock.price = e.ChildText("fin-streamer[data-testid='qsp-price'] span")
 		fmt.Println("Price:", stock.price)
-		stock.change = e.ChildText("fin-streamer[data-field='regularMarketChangePercent']")
+		stock.change = e.ChildText("fin-streamer[data-testid='qsp-price-change-percent'] span")
 		fmt.Println("Change:", stock.change)
 
 		stocks = append(stocks,stock)
 	})
+	c.OnHTML("body", func(e *colly.HTMLElement) {
+		fmt.Println(e.Text) // Print the body content to check if the data is there
+	})
+	
+	for _, t := range ticker {
+		c.Visit("https://finance.yahoo.com/quote/" + t + "/")
+	}
+	c.Wait()
 
 
-	c.Visit("https://finance/yahoo.com/quote/" + t + "/")
+	fmt.Println(stocks)
+
+	file, err := os.Create("stocks.csv")
+	if err != nil {
+		log.Fatalln("Failed to create output CSV file", err)
+	}
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	headers := []string{
+		"company",
+		"price",
+		"change",
+	}
+	writer.Write(headers)
+	for _, stock := range stocks {
+		record := []string{
+			stock.company,
+			stock.price,
+			stock.change,
+		}
+		writer.Write(record)
+	}
+	defer writer.Flush()
 }
